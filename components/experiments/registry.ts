@@ -3,6 +3,9 @@ export type ExperimentMeta = {
   title: string;
   description: string;
   tags?: string[];
+  cameraPosition?: [number, number, number];
+  fov?: number;
+  background?: string;
 };
 
 export const experiments: ExperimentMeta[] = [
@@ -11,6 +14,15 @@ export const experiments: ExperimentMeta[] = [
     title: 'Rotating Cube',
     description: 'Hello world de React Three Fiber: un cubo que rota sobre sus ejes.',
     tags: ['intro', 'animation'],
+  },
+  {
+    slug: 'galaxy',
+    title: 'Galaxia (paso 1)',
+    description: 'Sistema de partículas con distribución en espiral. 100k puntos, additive blending, color lerp del núcleo al borde.',
+    tags: ['particles', 'wip'],
+    cameraPosition: [5, 7, 8],
+    fov: 55,
+    background: '#05050d',
   },
 ];
 
