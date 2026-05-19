@@ -24,6 +24,15 @@ export const experiments: ExperimentMeta[] = [
     fov: 55,
     background: '#05050d',
   },
+  {
+    slug: 'black-hole',
+    title: 'Black hole (Gargantua, paso 1)',
+    description: 'Horizonte de eventos + disco de acreción de partículas con rotación diferencial + photon ring billboarded + bloom. Sin lensing aún.',
+    tags: ['shaders', 'particles', 'wip'],
+    cameraPosition: [0, 0.6, 5.8],
+    fov: 50,
+    background: '#000000',
+  },
 ];
 
 export function getExperiment(slug: string): ExperimentMeta | undefined {

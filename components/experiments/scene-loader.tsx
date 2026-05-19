@@ -12,6 +12,9 @@ const scenes: Record<string, ComponentType> = {
   galaxy: dynamic(() => import('./galaxy/scene'), {
     ssr: false,
   }),
+  'black-hole': dynamic(() => import('./black-hole/scene'), {
+    ssr: false,
+  }),
 };
 
 export function SceneViewer({ slug }: { slug: string }) {
