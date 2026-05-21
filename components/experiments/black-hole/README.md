@@ -1,421 +1,263 @@
-# Black hole (Gargantua)
+# Black hole (raymarched, TSL)
 
-> Black hole estilo *Interstellar* construido como **5 capas** de geometría y shaders + camera roll + bloom postprocessing. Aproxima el look icónico de Gargantua **sin lensing real** — el "anillo doblado" arriba y abajo del shadow es un billboard fakeado.
+> Port directo de [MisterPrada/black-hole](https://github.com/MisterPrada/black-hole) — black hole **raymarcheado** con **5 passes ping-pong de render targets**, escrito íntegramente en **TSL** (Three Shading Language) sobre la `NodeMaterial` de Three.js 0.184.
+>
+> Shader original: [Shadertoy `lstSRS`](https://www.shadertoy.com/view/lstSRS).
 
-Referencia visual: el black hole de Gargantua (*Interstellar*, 2014). Los efectos físicos que se simulan son: disco de acreción rotando con velocidad keplerian-like, doppler beaming (asimetría brillante por velocidad orbital), photon ring delgado, y "wrap-around" del disco visto a través de la lente gravitacional.
+A diferencia de la versión previa (basada en capas de partículas con post-effect de lensing), esta es una solución de raymarching real: por cada pixel se traza un rayo, se dobla por una aproximación geodésica `1/r²` paso a paso, se acumula contribución de un disco de gas volumétrico (SDF torus + multi-octave noise + textura `gas.jpg`) y se temporalmente blendea con el frame anterior al 90% para suprimir el noise de muestreo.
 
 ## Tabla de contenidos
 
-- [Mapa de las 5 capas](#mapa-de-las-5-capas)
-- [Conceptos clave](#conceptos-clave)
-  - [Sphere opaca + additive points: cómo se "talla" el shadow](#sphere-opaca--additive-points-cómo-se-talla-el-shadow)
-  - [Lensing fake con `<Billboard>` de drei](#lensing-fake-con-billboard-de-drei)
-  - [Doppler beaming en el vertex shader](#doppler-beaming-en-el-vertex-shader)
-  - [Camera roll via `camera.up` (no rotar la escena)](#camera-roll-via-cameraup-no-rotar-la-escena)
-  - [Reuso del par de shaders de partículas](#reuso-del-par-de-shaders-de-partículas)
-  - [Bloom postprocessing](#bloom-postprocessing)
-- [Cómo funciona cada capa](#cómo-funciona-cada-capa)
-- [Patrones del repo y por qué](#patrones-del-repo-y-por-qué)
-- [Knobs por capa (cheat sheet)](#knobs-por-capa-cheat-sheet)
-- [Qué falta / Fase 4+](#qué-falta--fase-4)
+- [Arquitectura — 5 passes](#arquitectura--5-passes)
+- [Estructura de archivos](#estructura-de-archivos)
+- [Cómo funciona cada pass](#cómo-funciona-cada-pass)
+- [TSL: cosas que necesitás saber](#tsl-cosas-que-necesits-saber)
+- [Performance](#performance)
+- [Knobs](#knobs)
+- [Diferencias con el reference](#diferencias-con-el-reference)
 
 ---
 
-## Mapa de las 5 capas
+## Arquitectura — 5 passes
 
-Orden de render (importante por depth + blending). De fondo a frente:
+Cada frame, el `BlackHolePipeline` ejecuta 5 renders fullscreen secuenciales y un swap de ping-pong:
 
-| # | Capa | Archivo | Tipo | Qué aporta |
-|---|---|---|---|---|
-| 1 | **Starfield** | `starfield.tsx` | Additive points | Estrellas envolventes en cáscara esférica (radio 30-80) — contexto cósmico |
-| 2 | **EventHorizon** | `horizon.tsx` | Opaque mesh | Esfera negra que ocluye el medio disco trasero — define el "shadow" |
-| 3 | **AccretionDisk** | `disk.tsx` | Additive points (con doppler) | 180k partículas del disco caliente en plano XZ, rotación diferencial + brillo asimétrico |
-| 4 | **LensedDisk** | `lensed-disk.tsx` | Billboard shader plane | Annulus que abraza el shadow — fake del "wrap-around" del disco trasero por lensing |
-| 5 | **PhotonRing** | `photon-ring.tsx` | Billboard shader plane | Rim brillante muy fino pegado al horizon — el photon ring estilizado |
-| — | **Bloom** | `scene.tsx` | Postprocess | Florece los hot spots — el "calor" alrededor de los puntos brillantes |
-| — | **CameraRoll** | `scene.tsx` | Camera tweak | Rota `camera.up` para inclinar el horizonte de la imagen ~12° |
+```
+                                 noise.png    gas.jpg
+                                     │           │
+                                     ▼           ▼
+                              ┌─────────────────────────┐
+                              │ Pass 1: RAYMARCH        │
+buffer1_previous ───feedback──│  200 samples / pixel    │──► buffer1_current
+                              │  WarpSpace + GasDisc    │
+                              │  + Haze + temporal blend│
+                              └─────────────────────────┘
+                                            │
+                                            ▼
+                              ┌─────────────────────────┐
+                              │ Pass 2: MIPMAP TREE     │
+                              │  Packs 8 octaves into 1 │──► buffer2
+                              │  texture via oversample │
+                              │  grids (1, 4², 8², 16²) │
+                              └─────────────────────────┘
+                                            │
+                                            ▼
+                              ┌─────────────────────────┐
+                              │ Pass 3: H-BLUR (5-tap)  │──► buffer3
+                              └─────────────────────────┘
+                                            │
+                                            ▼
+                              ┌─────────────────────────┐
+                              │ Pass 4: V-BLUR (5-tap)  │──► buffer4 (bloom)
+                              └─────────────────────────┘
+                                            │
+                              ┌─────────────┴───┐
+                              │ Pass 5:         │
+buffer1_current ─────────────►│ COMPOSITE       │──► SCREEN
+                              │ • color+bloom×0.08 │
+buffer4 (bloom) ─────────────►│ • Reinhard       │
+                              │ • power grade    │
+                              │ • Kali starfield │
+                              │   en los bordes  │
+                              └─────────────────┘
 
-Archivos compartidos:
-- `shaders.ts` — un único par vertex + fragment shader que sirve a las dos capas de **partículas** (starfield y disk). Las variaciones se logran via uniforms (`uSize`, `uSoftness`, `uAlphaMultiplier`, `uRotationStrength`, `uDopplerStrength`, `uCameraDir`).
-- `scene.tsx` — orchestrator: importa las 5 capas + CameraRoll + EffectComposer y los ensambla.
+[ swap buffer1_current ↔ buffer1_previous para el próximo frame ]
+```
 
-Las dos capas billboard (`lensed-disk.tsx`, `photon-ring.tsx`) usan **shaders inline propios** porque su geometría es un plane (no points) y sus efectos no se mapean bien al shader compartido.
+El pass 1 lee del frame anterior (vía `tBuffer1Prev`) → mezcla 90/10 → el ruido por-pixel del raymarch se promedia a través del tiempo. Es la misma técnica que tienen muchos path-tracers.
+
+Los passes 2-4 implementan **bloom manual via packed mipmap tree**: en vez de generar mipmaps reales, el pass 2 copia el raymarched image a 8 escalas distintas dentro de un mismo texture (con `CalcOffset` ubicando cada octava), y los passes 3+4 le aplican un blur gaussiano separable. El composite después samplea las 8 octavas con bicubic y las acumula con pesos `1.0 / 1.5 / 1.0 / 1.5 / 1.8 / 1.0 / 1.0 / 1.0`.
 
 ---
 
-## Conceptos clave
+## Estructura de archivos
 
-### Sphere opaca + additive points: cómo se "talla" el shadow
+```
+components/experiments/black-hole/
+  tsl-helpers.ts       Uniforms + TextureNodes módulo-level, helpers TSL
+                       (rand, noise, sdTorus, rotate, pcurve, calcOffset)
+  mat-buffer1.ts       Pass 1: raymarch (200 samples)
+  mat-buffer2.ts       Pass 2: mipmap tree con oversampling
+  mat-buffer3.ts       Pass 3: H-gaussian blur (5-tap)
+  mat-buffer4.ts       Pass 4: V-gaussian blur (5-tap)
+  mat-composite.ts     Pass 5: composite + tonemap + grade + Kali starfield
+  pipeline.tsx         Orchestrator: 5 RTs + frame loop con gl.render manual
+  scene.tsx            Wrapper que monta el pipeline
 
-Esta es la mecánica fundamental que define la silueta del black hole. **No es magia ni un mask** — emerge del orden natural de three.js entre objetos opacos y transparentes.
-
-1. El **EventHorizon** es una `<sphereGeometry>` con `<meshBasicMaterial color="#000000">` — opaca, default `depthWrite: true`, `depthTest: true`.
-2. La **AccretionDisk** son `<points>` con `blending={THREE.AdditiveBlending}`, `depthWrite={false}`, `transparent`, `depthTest: true` (implícito).
-
-Three.js rendea primero los objetos opacos (la esfera), escribiendo color **y** depth. Después rendea los transparentes (las partículas). Cuando una partícula intenta pintar un píxel:
-
-- Si su Z está **delante** de la esfera → pasa el depth test → se pinta normal.
-- Si su Z está **detrás** de la esfera → falla el depth test → no se pinta.
-
-Resultado: las partículas del medio disco trasero quedan ocluidas, las del medio disco delantero pasan por delante del shadow. **Eso es lo que crea la separación visual entre el disco horizontal "cortado" y la silueta negra del agujero.**
-
-Las dos capas billboard (`LensedDisk`, `PhotonRing`) usan el mismo mecanismo: en píxeles que caen dentro de la proyección 2D del horizon, su Z (centro del billboard ≈ origin) está más lejos que la front face de la esfera, así que ahí no se pintan. Por eso ambos anillos "abrazan" el horizon sin pisar la silueta negra.
-
-### Lensing fake con `<Billboard>` de drei
-
-Gargantua muestra el lado **trasero** del disco curvado por arriba y por debajo del shadow (la luz se dobla cerca del horizon). Hacerlo de verdad requiere un fragment shader que samplea coordenadas distorsionadas según deflection angle — matemática real de relatividad general.
-
-Acá lo fakeamos con **un plane billboardeado** + un shader de annulus:
-
-```tsx
-<Billboard>
-  <mesh>
-    <planeGeometry args={[4, 4]} />
-    <shaderMaterial vertexShader={...} fragmentShader={...} ... />
-  </mesh>
-</Billboard>
+public/textures/black-hole/
+  noise.png            256x256 noise texture del reference
+  gas.jpg              Textura de gas para modular el disco
 ```
 
-`<Billboard>` de drei rota el contenido cada frame para que su forward axis apunte a la cámara. Así, sin importar desde dónde orbitás, **el plane siempre te encara**.
+---
 
-El fragment shader dibuja un annulus (anillo) centrado en el plane, con dos bandas:
-- **Core**: anillo brillante delgado pegadito al horizon (r ≈ 1.0 → 1.18)
-- **Halo**: banda más amplia y suave por afuera (r ≈ 1.10 → 1.55)
+## Cómo funciona cada pass
 
-Más un **angular bias vertical** — más fuerte arriba/abajo del shadow, más suave a los lados. Eso emula la física real: el lensing del lado trasero es más visible donde no hay disco delantero tapándolo (arriba/abajo del plano del disco), y "se conecta" visualmente con el disco horizontal en los extremos laterales.
+### Pass 1 — raymarch ([mat-buffer1.ts](mat-buffer1.ts))
 
 ```glsl
-vec2 c = (vUv - 0.5) * 4.0;        // local coords -2..2
-float d = length(c);
-float core = smoothstep(0.96, 1.01, d) * smoothstep(1.18, 1.05, d);
-float halo = smoothstep(1.00, 1.10, d) * smoothstep(1.55, 1.20, d) * 0.55;
-float annulus = core + halo;
-
-float vertical = abs(c.y) / max(d, 0.001);
-float angularBias = 0.5 + 0.6 * vertical;
-float intensity = annulus * angularBias;
+// Pseudocódigo del loop principal
+ray = camera ray a través del pixel
+for (200 steps):
+  WarpSpace(ray)         // dobla el ray hacia el centro por 1/r²
+  ray.pos += ray.dir * stepLen
+  GasDisc(color, alpha, ray.pos)   // SDF torus + multi-octave noise + gas.jpg
+  Haze(color, ray.pos, alpha)      // glow del torus interior
+color = mix(color, previous, 0.9)   // temporal accumulation
 ```
 
-**No es físicamente correcto**, pero visualmente convincente. La diferencia clave con el lensing real: el wrap-around fake no se modula por la posición de las partículas detrás del horizon — es una capa estática que parece ahí siempre. En lensing real, el "anillo" se mueve y rota con el material del disco real.
+- **WarpSpace** es el truco clave que hace todo lensear: cada step, el vector dirección se desvía hacia el origen por una cantidad proporcional a `1/r²`. La suma de 200 desviaciones pequeñas aproxima razonablemente bien la geodésica de Schwarzschild en weak field.
+- **GasDisc** es lo más caro del shader: para cada pixel × cada step, evalúa un `pcurve` radial, una `sdTorus`, hasta 10 octavas de noise procedural (que samplean `noise.png`), y una lookup en `gas.jpg` con coords radiales rotantes.
+- **Haze** es un toro fino emisivo justo en `r=1.0` que da el bloom-disc brillante que abraza el horizon.
+- El **dither inicial** del rayo (160 los primeros 50 frames, decae a `rand(uv)*2`) decorrela los pixels del temporal blend — sin esto la imagen quedaría pegada al primer frame.
 
-### Doppler beaming en el vertex shader
+### Pass 2 — mipmap tree ([mat-buffer2.ts](mat-buffer2.ts))
 
-En un disco de acreción real, el material orbita a velocidades relativistas. El lado que se mueve **hacia la cámara** aparece dramáticamente más brillante (blueshift + boost de fotones); el lado que se aleja, más oscuro (redshift). Se llama **doppler beaming relativista**.
+Empaqueta 8 octavas downsampleadas de buffer1 en una sola textura. Cada octava se renderea en una región distinta de buffer2 según `CalcOffset(octave)`. Como buffer1 no tiene mipmaps reales, el downsample manual hace **oversampling**:
+- Octava 1: 1 sample
+- Octava 2: 4×4 = 16 samples
+- Octava 3: 8×8 = 64 samples
+- Octavas 4-8: 16×16 = 256 samples cada una
 
-Se calcula por partícula en el **vertex shader** porque depende de la posición rotada:
+Suena costoso pero la mayoría de los pixels caen fuera de la región activa de su octava y retornan 0 inmediatamente. El cost total es ~50× el de un pixel shader normal.
+
+### Passes 3 + 4 — gaussian blur separable ([mat-buffer3.ts](mat-buffer3.ts), [mat-buffer4.ts](mat-buffer4.ts))
+
+Filtro 5-tap bilineal-leveraged (cada tap aprovecha el filtro hardware para cubrir 2 pixels):
+
+```
+weights = [0.196, 0.297, 0.094, 0.0104, 0.000259]
+offsets = [0.0, 1.41, 3.29, 5.18, 7.06]
+```
+
+El `if (uv.x < 0.52)` evita procesar la mitad derecha de la textura (donde no hay mipmap data, solo padding).
+
+### Pass 5 — composite ([mat-composite.ts](mat-composite.ts))
+
+Junta todo:
 
 ```glsl
-uniform vec3 uCameraDir;        // versor desde origen hacia cámara
-uniform float uDopplerStrength; // 0 desactiva (starfield)
+color = buffer1(uv) + 0.08 * sum(8 octavas de buffer4 con pesos)
+color *= 150.0                         // re-amplifica a HDR
+color = pow(c, 1.5); c = c/(1+c); c = pow(c, 1/1.5)   // Reinhard-tweaked
+color = c*c*(3-2c)                     // smoothstep contrast bump
+color = pow(c, vec3(1.3, 1.2, 1.0))    // warm bias
+color = clamp(c*1.01, 0, 1)
+color = pow(c, 0.7/2.2)                // gamma "exposed"
 
-// ... después de aplicar la rotación a pos.x, pos.z:
-vec3 tangent = normalize(vec3(-pos.z, 0.0, pos.x));  // perpendicular al radio
-float dopplerFactor = dot(tangent, uCameraDir);      // -1..1
-float beaming = 1.0 + dopplerFactor * uDopplerStrength;
-vColor = color * max(beaming, 0.0);
+// Mezclar con Kali starfield procedural en los bordes
+stars = volumetric raymarch (20 steps × 14 iter, magic-formula folds)
+finalColor = mix(color, stars*0.005, smoothstep(0.3, 1.3, distFromCenter))
 ```
 
-**Por qué funciona**:
-- Una partícula en posición `(cos α, 0, sin α) * r` orbitando con `dα/dt > 0` tiene velocidad tangencial `(-sin α, 0, cos α) * r * dα/dt`. Eso es exactamente `(-pos.z, 0, pos.x)` normalizado.
-- El dot product con la dirección a la cámara da un escalar: `+1` cuando la partícula viene derecho hacia vos, `-1` cuando se aleja, `0` cuando va de costado.
-- Modulamos el color por `1 + factor * strength`. Con strength 0.7, las partículas que vienen brillan 70% más, las que se alejan se atenúan ~70% (clamped a 0).
+El **Kali starfield** es la "magic formula" de Kali (`p = abs(p)/dot(p,p) - formuparam`, iterada). Cada step del raymarch hace tile-fold y acumula brillo. Da la sensación de cosmos detrás del black hole sin necesitar geometría real.
 
-El `uniform vec3 uCameraDir` se actualiza cada frame desde JS leyendo `state.camera.position`:
+---
 
-```tsx
-useFrame((state) => {
-  tmpCameraDir.copy(state.camera.position).normalize();
-  materialRef.current.uniforms.uCameraDir.value.copy(tmpCameraDir);
+## TSL: cosas que necesitás saber
+
+TSL es el sistema de nodos de Three.js que compila a GLSL (WebGL) o WGSL (WebGPU) en runtime. Algunas particularidades que importaron al portar:
+
+### `.toVar()` para mutables
+
+En TSL los nodos son **expresiones inmutables** por default. Para variables locales mutables (necesarias en loops con `+=`):
+
+```ts
+const color = vec3(0, 0, 0).toVar();   // mutable
+Loop(SAMPLES, () => {
+  color.assign(color.add(contribution));  // OK
 });
 ```
 
-El uniform `uDopplerStrength` lo hace **opcional**: el starfield comparte el mismo par de shaders pero pasa `uDopplerStrength: 0`, así el `beaming = 1.0` y no afecta.
+Sin `.toVar()`, `.assign()` falla silenciosamente.
 
-### Camera roll via `camera.up` (no rotar la escena)
+### `Fn` con parámetros tipados como `any`
 
-Gargantua se ve con el "horizonte" inclinado ~10-15° en la pantalla. Hay dos formas de lograrlo:
+Los TSL `Fn` reciben nodos shader como argumentos. La inferencia TS de los tipos polimórficos (un mismo Fn puede recibir float o vec3) es muy estricta, así que typamos los parámetros como `any` y dejamos que TSL valide en runtime:
 
-1. **Rotar la escena entera** alrededor del eje Z. ❌ Problema: los `<Billboard>` se cancelan a sí mismos para mirar a cámara, lo que **descongela** la rotación del parent. El LensedDisk quedaría desalineado.
-2. **Rotar el `up` vector de la cámara**. ✅ La cámara mira al origen, pero su "arriba" ya no es world Y sino un vector inclinado. Los Billboards heredan eso (porque usan `lookAt` que consulta `camera.up`), así que su `c.y` interno queda alineado con el plano inclinado.
-
-```tsx
-function CameraRoll({ angle }: { angle: number }) {
-  const camera = useThree((s) => s.camera);
-  const controls = useThree((s) => s.controls);
-
-  useEffect(() => {
-    const original = camera.up.clone();
-    camera.up.set(Math.sin(angle), Math.cos(angle), 0);
-    controls?.update?.();
-    return () => { camera.up.copy(original); controls?.update?.(); };
-  }, [camera, controls, angle]);
-
-  return null;
-}
+```ts
+type N = any;
+export const noise = Fn(([x]: [N]) => { /* ... */ });
 ```
 
-`OrbitControls` (de drei) respeta `camera.up` — el orbit se hace consistentemente con ese up, y el horizonte de la pantalla queda rotado.
+### `vec3(scalar)` no broadcastea en los tipos
 
-**Importante**: como el LensedDisk usa `c.y` para el angular bias vertical, ese "arriba" se inclina con la cámara, lo cual es exactamente lo que queremos — el bias sigue alineado con la dirección perpendicular al disco.
+GLSL permite `vec3(0.5)` para broadcast. TSL en TypeScript no — hay que escribir `vec3(0.5, 0.5, 0.5)`. Para operaciones como `mix(vec3, vec3, scalar)` sí broadcastea automáticamente, así que el `vec3(...)` wrapper del original se eliminó.
 
-### Reuso del par de shaders de partículas
+### `pow(vec3, vec3)` → `.pow(vec3)`
 
-`shaders.ts` exporta un vertex + fragment compartido entre `starfield.tsx` y `disk.tsx`. Las variaciones por capa se logran solo con uniforms:
+La función libre `pow()` está tipada solo para float. Para vec, usar la forma método: `node.pow(otherNode)`.
 
-| Uniform | Starfield | Disk |
+### TextureNodes módulo-level + `.value` mutable
+
+Los `texture(new Texture())` en [tsl-helpers.ts](tsl-helpers.ts) crean placeholders. El pipeline reasigna `.value` cada frame (ping-pong de buffer1) o una sola vez al cargar (noise.png / gas.jpg). Los Fns cierran sobre estos nodos por closure, así que los cambios se reflejan en el siguiente render.
+
+### React Compiler
+
+R3F + Three.js es inherentemente imperativo: mutamos `mesh.material`, `tex.wrapS`, `rt.texture`, etc. El React Compiler de React 19 marca esto como error vía la regla `react-hooks/immutability`. `pipeline.tsx` la desactiva con `/* eslint-disable react-hooks/immutability */` — un escape hatch común para componentes R3F que orquestan render manualmente.
+
+---
+
+## Performance
+
+A 1080p con quality=2 (= renderea a 540p):
+- Pass 1 raymarch: ~200k pixels × 200 samples × (warpSpace + gasDisc + haze) — el más caro.
+- Pass 2: ~50× el costo de un pixel shader normal por el oversampling.
+- Passes 3+4: 10 taps cada uno, baratísimos.
+- Pass 5: ~280 iters del Kali + 32 bicubic samples para bloom.
+
+En una GPU discreta moderna (RTX 3060 o equivalente) corre ~60 fps a 1080p con quality=2. En iGPU laptop o mobile esperá 30-45 fps y considerá subir quality a 3-4.
+
+El parámetro `quality` (default 2) divide la resolución de los buffers (no del canvas) — `quality=1` rendea a full-res, `quality=4` a un cuarto.
+
+---
+
+## Knobs
+
+| Param | Default | Archivo | Sube → | Baja → |
+|---|---|---|---|---|
+| `SAMPLES` | 200 | [mat-buffer1.ts](mat-buffer1.ts) | Menos noise, más lento | Más noise, más rápido |
+| `FAR` | 20 | [mat-buffer1.ts](mat-buffer1.ts) | Ray viaja más lejos | Step más fino |
+| `warpAmount` | 5/SAMPLES | [mat-buffer1.ts](mat-buffer1.ts) | Lensing más fuerte | Más lineal |
+| `discRadius` / `discWidth` | 3.2 / 5.3 | [mat-buffer1.ts](mat-buffer1.ts) | Disco más grande / más ancho | |
+| `discThickness` base | 0.1 | [mat-buffer1.ts](mat-buffer1.ts) | Disco más puffy | Más fino |
+| `blendWeight` (temporal) | 0.9 | [mat-buffer1.ts](mat-buffer1.ts) | Más smoothing, más lag | Más responsive, más noise |
+| Bloom weights | 1/1.5/1/1.5/1.8/1/1/1 | [mat-composite.ts](mat-composite.ts) | Glow más intenso | Más sobrio |
+| Bloom multiplier | 0.08 | [mat-composite.ts](mat-composite.ts) | Total bloom mayor | Menor |
+| HDR multiplier | 150.0 | [mat-composite.ts](mat-composite.ts) | Más exposure / bright | Más sutil |
+| Power curve grade | (1.3, 1.20, 1.0) | [mat-composite.ts](mat-composite.ts) | Highlights más warm | Más neutral |
+| Gamma final | 0.7/2.2 | [mat-composite.ts](mat-composite.ts) | Midtones más altos | Más oscuros |
+| Kali `BRIGHTNESS` | 0.0015 | [mat-composite.ts](mat-composite.ts) | Stars más brillantes | Más tenues |
+| Kali `SATURATION` | 0.35 | [mat-composite.ts](mat-composite.ts) | Más color en stars | Más grises |
+| Starfield mask | smoothstep(0.3, 1.3, d) | [mat-composite.ts](mat-composite.ts) | Stars más cerca al centro | Más en los bordes |
+| `quality` (RT divider) | 2 | [pipeline.tsx](pipeline.tsx) | Más performance, más blurry | Más sharp, más caro |
+
+---
+
+## Diferencias con el reference
+
+| Aspecto | MisterPrada/black-hole | Acá |
 |---|---|---|
-| `uSize` | 60 | 38 |
-| `uSoftness` | 2.5 | 2.8 |
-| `uAlphaMultiplier` | 1.0 | 0.32 |
-| `uRotationStrength` | 0 | 1.0 |
-| `uDopplerStrength` | 0 | 0.7 |
-| `uCameraDir` | (vector estático, ignorado) | actualizado cada frame |
+| Shader language | GLSL via `vite-plugin-glsl` | TSL (compila a GLSL en runtime) |
+| Build tool | Vite | Next.js |
+| Renderer | Three.js `WebGLRenderer` con materiales custom | R3F + `NodeMaterial` (también WebGL) |
+| Cámara | Mouse-driven `RotateCamera` | R3F `OrbitControls` → uniforms de basis (right/up/forward/pos) |
+| Render loop | Manual via Experience.js | R3F `useFrame` priority=1 (deshabilita auto-render) |
+| Texturas | `noise.png` + `gas.jpg` (mismas) | Idem |
+| Postpro adicional | `MotionBlurPass` custom + `tweakpane` debug | Sin motion blur ni debug UI |
+| HellPortal sub-effect | Sí (separate world) | Eliminado |
 
-El shader implementa la **rotación diferencial keplerian-like** igual que en galaxy:
-
-```glsl
-float angleOffset = uTime * uRotationStrength / (distanceToCenter + 0.1);
-```
-
-`1 / r` significa que el material cerca del horizon orbita mucho más rápido que el material del borde — corresponde a `v ∝ 1/r` en órbitas planas (no es exactamente keplerian `v ∝ 1/√r`, pero el efecto visual de rotación diferencial es lo importante).
-
-### Bloom postprocessing
-
-Mismo bloom que galaxy, pero **tuneado mucho más conservador**:
-
-```tsx
-<Bloom
-  intensity={0.12}            // muy bajo
-  luminanceThreshold={0.88}   // muy alto: solo los hottest pixels
-  luminanceSmoothing={0.8}
-  kernelSize={KernelSize.SMALL}
-  mipmapBlur
-/>
-```
-
-¿Por qué tan bajo? El disco con 180k partículas additive blendeadas + el LensedDisk + el PhotonRing acumulan **mucha luminancia** en el centro. Si el bloom es agresivo, se "comen" los detalles y queda un halo blanco enorme. Con el threshold a 0.88, solo los hot spots realmente brillantes florecen, manteniendo el contraste del shadow contra el wrap-around.
+El motion blur del reference y el HellPortal no se portaron porque están fuera del scope del look core del black hole. Si querés agregar motion blur, lo más simple es un velocity-based effect via `@react-three/postprocessing`.
 
 ---
 
-## Cómo funciona cada capa
-
-### 1. Starfield (`starfield.tsx`)
-
-Cáscara esférica de 4.5k estrellas alrededor del black hole (radio 30-80). Mismo truco de distribución uniforme en superficie esférica que galaxy:
-
-```ts
-const r = innerR + Math.random() * (outerR - innerR);
-const theta = Math.acos(2 * Math.random() - 1);
-const phi = Math.random() * 2 * Math.PI;
-```
-
-Paleta ponderada realista (60% blanco, 18% blanco-azul, 12% azul, 8% amarillo-blanco, 4% naranja). `uRotationStrength: 0` y `uDopplerStrength: 0` — quedan estáticas en world space (mientras la cámara orbita, vos ves moverse el cosmos).
-
-**Diferencia con el starfield de galaxy**: cuenta de partículas más baja (4.5k vs 6k) y radio más amplio (30-80 vs 25-60) — el black hole es más chico que la galaxia y queremos contexto más "espacial" que "denso".
-
-### 2. EventHorizon (`horizon.tsx`)
-
-```tsx
-<mesh>
-  <sphereGeometry args={[0.95, 64, 64]} />
-  <meshBasicMaterial color="#000000" />
-</mesh>
-```
-
-Una esfera radio 0.95, color negro puro, material `MeshBasicMaterial` (no necesita luz). Su **depth write** es lo que talla el shadow en las capas additivas (ver [Sphere opaca + additive points](#sphere-opaca--additive-points-cómo-se-talla-el-shadow)).
-
-64 segmentos en cada eje porque la silueta es muy visible y queremos un contorno suave (no facetado).
-
-### 3. AccretionDisk (`disk.tsx`)
-
-180k partículas en un anillo plano en XZ:
-
-```ts
-const t = Math.pow(Math.random(), 1.6);  // bias hacia el inner edge
-const radius = innerRadius + t * (outerRadius - innerRadius);
-const theta = Math.random() * Math.PI * 2;
-const y = gaussian() * thickness;  // Box-Muller para soft falloff vertical
-
-positions[i3]     = Math.cos(theta) * radius;
-positions[i3 + 1] = y;
-positions[i3 + 2] = Math.sin(theta) * radius;
-```
-
-Por qué los detalles:
-- **`pow(random, 1.6)`** sesga la distribución hacia el inner edge → más densidad cerca del horizon (donde está el material más caliente). Es lo que da el "core brillante" del disco.
-- **`gaussian() * thickness`** (Box-Muller) da un perfil vertical **suave** en vez de un slab plano. El disco tiene un poco de "puff" en Y, no es una lámina infinitamente fina.
-- **Color lerp del centro al borde**: `#fff0c8` (amarillo cálido) → `#9a4e18` (cobre oscuro). Emula el gradiente de temperatura del disco real (más caliente cerca del horizon).
-- **6% de partículas tienen boost 2.4×** en `aScale` — son los "brillos" estocásticos del gas.
-
-El uniforme `uDopplerStrength: 0.7` activa el beaming. El `uCameraDir` se actualiza cada frame:
-
-```tsx
-useFrame((state, delta) => {
-  materialRef.current.uniforms.uTime.value += delta;
-  tmpCameraDir.copy(state.camera.position).normalize();
-  materialRef.current.uniforms.uCameraDir.value.copy(tmpCameraDir);
-});
-```
-
-### 4. LensedDisk (`lensed-disk.tsx`)
-
-El plane billboardeado con el annulus shader de dos bandas (core + halo) y angular bias vertical. Documentado en [Lensing fake](#lensing-fake-con-billboard-de-drei).
-
-Notas:
-- El plane es de `4×4` en world units — suficientemente grande para que el annulus entero (que llega a `d ≈ 1.55`) entre.
-- `blending={THREE.AdditiveBlending}` + `depthWrite={false}` para que combine con el rest de la escena y no escriba depth.
-- No tiene rotación propia ni animación — su orientación viene del `<Billboard>`. El "movimiento visual" del wrap-around es ilusión del orbit de cámara.
-
-### 5. PhotonRing (`photon-ring.tsx`)
-
-El rim delgadito brillante justo pegado al horizon. Mismo patrón que LensedDisk (billboard + shader plane) pero shader mucho más simple:
-
-```glsl
-float rim = exp(-pow((d - 1.0) / 0.028, 2.0)) * 0.35;
-vec3 hot = vec3(1.0, 0.94, 0.78);
-gl_FragColor = vec4(hot * rim, rim);
-```
-
-Un único gaussiano peak en `d = 1.0` con sigma `0.028`, intensidad muy baja (0.35). En Gargantua el "anillo blanco" alrededor del shadow es principalmente el wrap-around del LensedDisk; este rim solo agrega un "hint" de luz hot justo en el borde para reforzar la lectura del horizon.
-
-### Bloom + CameraRoll (en `scene.tsx`)
-
-- **Bloom** ya documentado arriba — bajo y selectivo para no over-glow.
-- **CameraRoll** rota el up de cámara 12° — documentado en [Camera roll](#camera-roll-via-cameraup-no-rotar-la-escena).
-
----
-
-## Patrones del repo y por qué
-
-### Mismo par de shaders para partículas, shaders inline para billboards
-
-`shaders.ts` (vertex + fragment compartido) sirve a las dos capas que son particle systems (starfield, disk). Las dos capas billboard (`lensed-disk.tsx`, `photon-ring.tsx`) tienen sus shaders **inline en el mismo archivo**, porque:
-
-1. Su geometría es un plane (no points), así que la mitad del vertex shader compartido (`gl_PointSize`, `gl_PointCoord`) no aplica.
-2. Sus shaders son cortos (10-25 líneas), no vale la pena un archivo aparte.
-3. Tienen lógica muy específica (annulus, gaussiano, angular bias) que no se reusa entre billboards.
-
-Si en Fase 4 agregamos más billboards (e.g. doppler ring secundario), evaluar si compartirles un base.
-
-### Module-level uniforms + `materialRef.current`
-
-Mismo patrón que galaxy (ver el README de galaxy para detalle completo). Resumido:
-
-```tsx
-const uniforms = { uSize: { value: 38 }, uTime: { value: 0 }, /* ... */ };
-
-useFrame((_, delta) => {
-  if (materialRef.current) {
-    materialRef.current.uniforms.uTime.value += delta;
-  }
-});
-```
-
-Module-level evita problemas con el React Compiler de Next 16 / React 19. Mutar via `materialRef.current.uniforms` garantiza que three.js lee el valor actualizado.
-
-### `useState(buildGeometry)` + cleanup
-
-Igual que galaxy:
-
-```tsx
-const [geometry] = useState(buildDiskGeometry);
-useEffect(() => () => geometry.dispose(), [geometry]);
-```
-
-Lazy init (se ejecuta una sola vez al mount), cleanup libera la memoria GPU al unmount.
-
-### CameraRoll dentro del Scene, no en CanvasFrame
-
-`CanvasFrame` es genérico para todos los experimentos. El roll es **específico** del look del black hole. Vive como componente local dentro de `scene.tsx` y limpia el up vector cuando se desmonta — así otros experimentos no heredan la rotación.
-
----
-
-## Knobs por capa (cheat sheet)
-
-| Capa | Param notable | Default | Sube → | Baja → |
-|---|---|---|---|---|
-| Starfield | `count` | 4500 | Más estrellas de fondo | Cielo más vacío |
-| Starfield | `outerRadius` | 80 | Estrellas más lejos | Más concentradas alrededor |
-| EventHorizon | `radius` (en `sphereGeometry args`) | 0.95 | Shadow más grande | Shadow más chico |
-| Disk | `count` | 180_000 | Disco más denso/fluido | Más granuloso |
-| Disk | `innerRadius` | 1.15 | Hueco más grande entre disco y horizon | Disco "casi tocando" |
-| Disk | `outerRadius` | 3.1 | Disco más extendido | Más compacto |
-| Disk | `thickness` | 0.022 | Disco más "puffy" | Más fino/plano |
-| Disk | `size` | 38 | Partículas más grandes (fluido) | Más puntiformes |
-| Disk | `uSoftness` | 2.8 | Puntos más sharp | Puntos más difusos |
-| Disk | `uAlphaMultiplier` | 0.32 | Disco más brillante | Más sutil |
-| Disk | `uDopplerStrength` | 0.7 | Asimetría dramática (un lado quemado) | Asimetría sutil |
-| Disk | `insideColor` / `outsideColor` | `#fff0c8` / `#9a4e18` | (paleta) | (paleta) |
-| LensedDisk | `intensity * 1.0` (mult final) | 1.0 | Wrap-around dominante | Más sutil |
-| LensedDisk | inner edge (`smoothstep(0.96, 1.01, d)`) | 0.96-1.01 | (mueve el borde interno) | |
-| LensedDisk | outer edge (`smoothstep(1.55, 1.20, d)` del halo) | 1.55 | Halo más amplio | Anillo más ceñido |
-| LensedDisk | `angularBias = 0.5 + 0.6 * vertical` | 0.5 / 0.6 | (más uniforme / más boost vertical) | |
-| PhotonRing | `rim ... * 0.35` | 0.35 | Rim más visible | Casi invisible |
-| PhotonRing | sigma del gaussiano | 0.028 | Rim más grueso | Hairline puro |
-| Bloom | `intensity` | 0.12 | Más glow | Más sobrio |
-| Bloom | `luminanceThreshold` | 0.88 | Solo lo más caliente florece | Más cosas florecen |
-| CameraRoll | `ROLL_DEGREES` | 12 | Más inclinado | Más horizontal |
-| Camera | `cameraPosition` (en registry.ts) | `[0, 0.6, 5.8]` | (subir Y = más desde arriba; subir Z = más lejos) | |
-
----
-
-## Qué falta / Fase 4+
-
-El experimento está en una versión "estilizada", no fotorrealista. Para llevarlo más lejos:
-
-### Lensing real (no fake)
-
-Reemplazar el `LensedDisk` billboard por un **fragment shader fullscreen post-effect** que samplea coordenadas del framebuffer distorsionadas según deflection angle Schwarzschild:
-
-```
-deflection ≈ 4 * G * M / (c² * b)
-```
-
-donde `b` es el impact parameter (distancia mínima del ray al centro). El shader rebote cada pixel cerca del centro hacia su "imagen lensed". Esto da un wrap-around físicamente correcto que se mueve con las partículas detrás.
-
-Costo: un pass adicional con muestreo no trivial. No es performance-prohibitive en GPUs modernas.
-
-### Distorsión del background
-
-Las estrellas del starfield detrás del horizon también deberían distorsionarse. Mismo shader de deflection, pero aplicado al sampling del starfield (no solo a las partículas del disco).
-
-### Doppler beaming relativista
-
-La fórmula actual es lineal (`color * (1 + factor * strength)`). Relativistically:
-
-```
-brightness_obs / brightness_rest = D⁴
-D = 1 / (γ * (1 - β * cos θ))
-```
-
-Eso daría la asimetría mucho más dramática y físicamente correcta. Vale la pena solo si vas hacia "fotorealista".
-
-### Acretion turbulence
-
-El disco actual es liso. Agregar **noise 3D** (curl noise + simplex) que perturbe ligeramente las posiciones y agregue "filamentos" de gas. Pasa al vertex shader como una sumatoria de octavas de noise. Costo: barato en GPU.
-
-### Movimiento del background con orbit
-
-Si activáramos `uRotationStrength` en starfield o un slight spin, las estrellas se moverían — pero perdemos la sensación de "espacio fijo". Generalmente no se hace, salvo para shots cinematic.
-
----
-
-## Cómo agregar una capa nueva
-
-1. **Decidir el tipo**:
-   - Si es nube de puntos (estrellas, polvo, gas) → particle system con `<points>` y los shaders compartidos en `shaders.ts`.
-   - Si es un efecto envolvente que mira a cámara (halo, ring, glow) → `<Billboard>` + plane + shader inline propio.
-   - Si es geometría sólida que ocluye (jet, anillo material) → mesh con material standard.
-
-2. **Crear el archivo** en `components/experiments/black-hole/<nombre>.tsx` siguiendo el patrón de la capa más parecida:
-   - Particle system → copiar `starfield.tsx` o `disk.tsx`
-   - Billboard → copiar `lensed-disk.tsx` o `photon-ring.tsx`
-
-3. **Si usa shaders compartidos**, agregar los uniforms necesarios (incluyendo `uCameraDir` y `uDopplerStrength` — con valor 0 si no aplica doppler).
-
-4. **Importar en `scene.tsx`** y agregar en el JSX. Cuidado con el **orden** si depende de depth (objetos opacos antes de transparentes).
-
-5. **Tunear en vivo** con HMR.
-
-Si el efecto requiere un shader fullscreen post-process (e.g. lensing real), agregar como `<EffectComposer>` child junto al Bloom — `@react-three/postprocessing` ya está instalado y soporta custom effects.
-
+## Si tenés que tocar el shader
+
+1. Empezá por [mat-buffer1.ts](mat-buffer1.ts) — es donde está toda la "física".
+2. Para cambiar la sensación cinemática (color, contraste, exposure) tocá [mat-composite.ts](mat-composite.ts).
+3. Para más/menos glow, ajustá los bloom weights o el `* 0.08` en composite.
+4. Si querés ver el raymarch sin temporal blend (para debug), seteá `blendWeight` a 0 en mat-buffer1.
+5. Si querés ver una octava específica del bloom, hardcodeá `getBloom()` para retornar solo esa octava.
+6. Para visualizar buffer4 directamente (debug), cambiá el composite a `return vec4(tBuffer4.sample(uv2).rgb, 1.0);`.
+
+Todos los cambios son hot-reload-able vía Next.js dev server.

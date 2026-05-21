@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(pnpm dev *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm -v)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} in %{time_total}s\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"black-hole: %{http_code}\\\\n\" http://localhost:3000/experiments/black-hole)",
+      "Bash(curl -s -o /dev/null -w \"galaxy: %{http_code}\\\\n\" http://localhost:3000/experiments/galaxy)",
+      "Bash(curl -s -o /dev/null -w \"rotating-cube: %{http_code}\\\\n\" http://localhost:3000/experiments/rotating-cube)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.shadertoy.com)",
+      "Bash(gh api *)",
+      "PowerShell(gh api repos/MisterPrada/black-hole/contents/src)",
+      "PowerShell($r = Invoke-WebRequest -Uri \"https://api.github.com/repos/MisterPrada/black-hole\" -Headers @{ \"User-Agent\" = \"claude-code\"; \"Accept\" = \"application/vnd.github+json\" }; $r.Content | Select-Object -First 800)",
+      "PowerShell(try { $r = [System.Net.WebClient]::new\\(\\); $r.Headers.Add\\('User-Agent','claude-code'\\); $r.DownloadString\\('https://api.github.com/repos/MisterPrada/black-hole'\\) } catch { $_ | Out-String })",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://api.github.com/repos/MisterPrada/black-hole/git/trees/master?recursive=1'\\))",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/package.json'\\))",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/src/Experience/Shaders/BlackHole/render_f.glsl'\\))",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/src/Experience/Shaders/BlackHole/buffer1_f.glsl'\\))",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/src/Experience/World/BlackHole.js'\\) | Select-Object -First 9000)",
+      "Bash(pnpm exec *)",
+      "PowerShell(pnpm exec tsc --noEmit 2>&1)",
+      "PowerShell($out = pnpm exec tsc --noEmit 2>&1; if \\($LASTEXITCODE -ne 0\\) { Write-Output \"EXIT=$LASTEXITCODE\" } else { Write-Output \"OK\" }; $out | Select-Object -First 50)",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/src/Experience/Shaders/BlackHole/buffer2_f.glsl'\\))",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/src/Experience/Shaders/BlackHole/buffer3_f.glsl'\\))",
+      "PowerShell($wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadString\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/src/Experience/Shaders/BlackHole/buffer4_f.glsl'\\))",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"public/textures/black-hole\" | Out-Null; $wc = [System.Net.WebClient]::new\\(\\); $wc.Headers.Add\\('User-Agent','claude-code'\\); $wc.DownloadFile\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/static/textures/noise.png', \\(Resolve-Path 'public/textures/black-hole'\\).Path + '\\\\noise.png'\\); $wc.DownloadFile\\('https://raw.githubusercontent.com/MisterPrada/black-hole/master/static/textures/gas.jpg', \\(Resolve-Path 'public/textures/black-hole'\\).Path + '\\\\gas.jpg'\\); Get-ChildItem 'public/textures/black-hole')",
+      "PowerShell($out = pnpm exec tsc --noEmit 2>&1; Write-Output \"EXIT=$LASTEXITCODE\"; $out | Select-Object -First 200)",
+      "PowerShell(pnpm exec tsc --noEmit 2>&1 | Select-String -Pattern \"^components\" | ForEach-Object { $_.Line } | Select-Object -First 80)",
+      "PowerShell(pnpm exec tsc --noEmit 2>&1 | Select-String -Pattern \"^components\" | ForEach-Object { $_.Line } | Select-Object -First 50)",
+      "PowerShell($out = pnpm exec next build 2>&1; if \\($LASTEXITCODE -eq 0\\) { Write-Output \"BUILD_OK\"; $out | Select-Object -Last 30 } else { Write-Output \"EXIT=$LASTEXITCODE\"; $out | Select-Object -Last 80 })",
+      "Bash(xargs grep -l \"WebGLNodes\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\gonza\\Laboratory"
+    ]
+  }
+}
