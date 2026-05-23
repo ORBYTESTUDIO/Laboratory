@@ -6,15 +6,12 @@ export type ExperimentMeta = {
   cameraPosition?: [number, number, number];
   fov?: number;
   background?: string;
+  // When true, the scene-loader skips its default CanvasFrame wrap so the
+  // scene can render its own Canvas (e.g. with a WebGPU renderer).
+  customCanvas?: boolean;
 };
 
 export const experiments: ExperimentMeta[] = [
-  {
-    slug: 'rotating-cube',
-    title: 'Rotating Cube',
-    description: 'Hello world de React Three Fiber: un cubo que rota sobre sus ejes.',
-    tags: ['intro', 'animation'],
-  },
   {
     slug: 'galaxy',
     title: 'Galaxia (paso 1)',
@@ -25,13 +22,20 @@ export const experiments: ExperimentMeta[] = [
     background: '#05050d',
   },
   {
-    slug: 'black-hole',
-    title: 'Black hole (raymarched TSL)',
-    description: 'Black hole raymarcheado en TSL — port de MisterPrada/black-hole. 5 passes (raymarch 200 samples + manual mip-chain bloom + composite con Kali starfield). Lensing real por geodesic warp, gas disc volumétrico con noise, temporal accumulation.',
-    tags: ['shaders', 'raymarching', 'tsl', 'postfx'],
-    cameraPosition: [0, 0, 10],
-    fov: 50,
+    slug: 'black-hole-cinematic',
+    title: 'Black Hole (cinematic GLSL)',
+    description: 'Black hole raymarcheado en GLSL puro siguiendo la skill cinematic-raymarching. Shell sphere centrada en cámara (BackSide), 320 pasos adaptativos, lensing inverso-cubo, disco de acreción con FBM polar + Keplerian swirl, Doppler beaming + red/blueshift, starfield procedural, ACES Filmic + gamma in-shader, Bloom + Vignette.',
+    tags: ['shaders', 'raymarching', 'glsl', 'postfx', 'cinematic'],
+    cameraPosition: [0, 4, 22],
+    fov: 45,
     background: '#000000',
+  },
+  {
+    slug: 'black-hole-singularity',
+    title: 'Black Hole (Singularity TSL/WebGPU)',
+    description: 'Black hole como scene-node bounded — Singularity path de la skill. WebGPURenderer + TSL: unit sphere DoubleSide, raymarch en object space con steering gravitacional, z-band quadratic shaping, Catmull-Rom B-spline 3-stop ramp, pseudo-normal edge sharpening, compositing front-to-back luminance-weighted, equirect starfield, pass()+bloom() en TSL.',
+    tags: ['shaders', 'raymarching', 'tsl', 'webgpu', 'cinematic'],
+    customCanvas: true,
   },
 ];
 

@@ -1,0 +1,20 @@
+$ next dev
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.100.77:3000
+✓ Ready in 533ms
+
+ GET /experiments/black-hole-grt 200 in 855ms (next.js: 613ms, generate-params: 463ms, application-code: 242ms)
+ GET /experiments/black-hole-grt 200 in 44ms (next.js: 9ms, generate-params: 6ms, application-code: 35ms)
+ GET / 200 in 98ms (next.js: 32ms, application-code: 66ms)
+ GET /experiments/black-hole-grt 200 in 31ms (next.js: 10ms, generate-params: 7ms, application-code: 21ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET /experiments/black-hole-grt 200 in 55ms (next.js: 9ms, generate-params: 6ms, application-code: 47ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET / 200 in 24ms (next.js: 3ms, application-code: 21ms)
+ GET /experiments/black-hole 200 in 27ms (next.js: 8ms, generate-params: 5ms, application-code: 19ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET / 200 in 20ms (next.js: 3ms, application-code: 18ms)
+ GET /experiments/galaxy 200 in 27ms (next.js: 9ms, generate-params: 5ms, application-code: 18ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET / 200 in 23ms (next.js: 3ms, application-code: 20ms)

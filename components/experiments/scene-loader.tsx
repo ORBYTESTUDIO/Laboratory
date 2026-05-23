@@ -6,13 +6,13 @@ import { CanvasFrame } from '@/components/canvas-frame';
 import { getExperiment } from './registry';
 
 const scenes: Record<string, ComponentType> = {
-  'rotating-cube': dynamic(() => import('./rotating-cube/scene'), {
-    ssr: false,
-  }),
   galaxy: dynamic(() => import('./galaxy/scene'), {
     ssr: false,
   }),
-  'black-hole': dynamic(() => import('./black-hole/scene'), {
+  'black-hole-cinematic': dynamic(() => import('./black-hole-cinematic/scene'), {
+    ssr: false,
+  }),
+  'black-hole-singularity': dynamic(() => import('./black-hole-singularity/scene'), {
     ssr: false,
   }),
 };
@@ -21,6 +21,13 @@ export function SceneViewer({ slug }: { slug: string }) {
   const Scene = scenes[slug];
   const meta = getExperiment(slug);
   if (!Scene) return null;
+
+  // Experiments that need a non-default renderer (e.g. WebGPU for TSL) own
+  // their Canvas. Skip the CanvasFrame wrap so they can mount their own.
+  if (meta?.customCanvas) {
+    return <Scene />;
+  }
+
   return (
     <CanvasFrame
       cameraPosition={meta?.cameraPosition}
