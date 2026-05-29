@@ -75,7 +75,7 @@ export function HotspotHint({ hasHotspots }: { hasHotspots: boolean }) {
     >
       <div
         className={
-          'rounded-full border px-4 py-2 font-mono text-xs backdrop-blur-sm transition ' +
+          'rounded-full border px-4 py-2 font-sans text-xs backdrop-blur-sm transition ' +
           (firstVisit
             ? 'border-amber-300/60 bg-black/60 text-amber-100 animate-pulse'
             : 'border-neutral-700/60 bg-black/40 text-neutral-300')

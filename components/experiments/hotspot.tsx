@@ -99,7 +99,7 @@ export function Hotspot({
               padding: '4px 10px',
               borderRadius: 9999,
               fontSize: 12,
-              fontFamily: 'var(--font-geist-mono, monospace)',
+              fontFamily: "var(--font-sans, 'itc-avant-garde-gothic-pro', sans-serif)",
               whiteSpace: 'nowrap',
               color: '#f5f5f5',
               background: 'rgba(10,10,16,0.72)',
