@@ -3,6 +3,7 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Suspense, type ReactNode } from 'react';
+import { CameraDive } from './experiments/camera-dive';
 
 type Props = {
   children: ReactNode;
@@ -13,6 +14,9 @@ type Props = {
   dpr?: number | [number, number];
   enableZoom?: boolean;
   enablePan?: boolean;
+  // Dive transition: while `diving` is true, fly the camera toward `divePoint`.
+  diving?: boolean;
+  divePoint?: [number, number, number] | null;
 };
 
 export function CanvasFrame({
@@ -24,6 +28,8 @@ export function CanvasFrame({
   dpr = [1, 2],
   enableZoom = true,
   enablePan = true,
+  diving = false,
+  divePoint = null,
 }: Props) {
   return (
     <Canvas
@@ -35,6 +41,7 @@ export function CanvasFrame({
       {controls && (
         <OrbitControls makeDefault enableZoom={enableZoom} enablePan={enablePan} />
       )}
+      <CameraDive active={diving} point={divePoint} />
     </Canvas>
   );
 }
