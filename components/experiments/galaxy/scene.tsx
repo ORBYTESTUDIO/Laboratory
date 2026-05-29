@@ -7,23 +7,23 @@ import { KernelSize } from 'postprocessing';
 import * as THREE from 'three';
 import { ARM_COUNT, logSpinAngle, pickArm } from './arms';
 import { Bulge } from './bulge';
-import { Dust } from './dust';
+import { CoreClouds, InnerClouds, OuterClouds } from './clouds';
 import { DustLanes } from './dust-lanes';
-import { Halo } from './halo';
+import { InnerHalo, OuterHalo } from './halo';
 import { HII } from './hii';
 import { fragmentShader, vertexShader } from './shaders';
 import { Starfield } from './starfield';
 
 const PARAMS = {
-  count: 100_000,
-  radius: 5,
+  count: 10_000,
+  radius: 4,
   spin: 1,
   randomness: 0.45,
   randomnessPower: 3,
   insideColor: '#ffd4a0',
   outsideColor: '#88a8ff',
   size: 30,
-  rotationStrength: 0.15,
+  rotationStrength: 0.05,
 };
 
 // Module-level so three.js keeps a stable reference and we can mutate `.value`
@@ -105,10 +105,11 @@ export default function Scene() {
   return (
     <>
       <Starfield />
-      <Halo />
-      <Dust />
-      <Bulge />
-      <HII />
+      <OuterHalo />
+      <InnerHalo />
+      <CoreClouds />
+      <InnerClouds />
+      <OuterClouds />
       <DustLanes />
       <points ref={pointsRef} geometry={geometry}>
         <shaderMaterial
@@ -124,8 +125,8 @@ export default function Scene() {
       </points>
       <EffectComposer>
         <Bloom
-          intensity={0.4}
-          luminanceThreshold={0.55}
+          intensity={1}
+          luminanceThreshold={0.6}
           luminanceSmoothing={0.9}
           kernelSize={KernelSize.LARGE}
           mipmapBlur

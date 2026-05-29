@@ -9,9 +9,6 @@ const scenes: Record<string, ComponentType> = {
   galaxy: dynamic(() => import('./galaxy/scene'), {
     ssr: false,
   }),
-  'black-hole-cinematic': dynamic(() => import('./black-hole-cinematic/scene'), {
-    ssr: false,
-  }),
   'black-hole-singularity': dynamic(() => import('./black-hole-singularity/scene'), {
     ssr: false,
   }),
@@ -33,6 +30,9 @@ export function SceneViewer({ slug }: { slug: string }) {
       cameraPosition={meta?.cameraPosition}
       fov={meta?.fov}
       background={meta?.background}
+      dpr={meta?.dpr}
+      enableZoom={meta?.enableZoom}
+      enablePan={meta?.enablePan}
     >
       <Scene />
     </CanvasFrame>

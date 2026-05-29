@@ -6,6 +6,14 @@ export type ExperimentMeta = {
   cameraPosition?: [number, number, number];
   fov?: number;
   background?: string;
+  // Device-pixel-ratio cap for the Canvas. Lower (e.g. [1, 1.5]) trades a bit
+  // of sharpness for a big fragment-shader win on hiDPI screens.
+  dpr?: number | [number, number];
+  // Disable OrbitControls zoom (dolly) while keeping rotate/pan. Defaults to true.
+  enableZoom?: boolean;
+  // Disable OrbitControls pan (shift+drag) so the camera always orbits the
+  // center instead of moving the look-at target. Defaults to true.
+  enablePan?: boolean;
   // When true, the scene-loader skips its default CanvasFrame wrap so the
   // scene can render its own Canvas (e.g. with a WebGPU renderer).
   customCanvas?: boolean;
@@ -20,15 +28,12 @@ export const experiments: ExperimentMeta[] = [
     cameraPosition: [5, 7, 8],
     fov: 55,
     background: '#05050d',
-  },
-  {
-    slug: 'black-hole-cinematic',
-    title: 'Black Hole (cinematic GLSL)',
-    description: 'Black hole raymarcheado en GLSL puro siguiendo la skill cinematic-raymarching. Shell sphere centrada en cámara (BackSide), 320 pasos adaptativos, lensing inverso-cubo, disco de acreción con FBM polar + Keplerian swirl, Doppler beaming + red/blueshift, starfield procedural, ACES Filmic + gamma in-shader, Bloom + Vignette.',
-    tags: ['shaders', 'raymarching', 'glsl', 'postfx', 'cinematic'],
-    cameraPosition: [0, 4, 22],
-    fov: 45,
-    background: '#000000',
+    // Fragment-heavy (cloud FBM); cap dpr so hiDPI screens don't render 4× pixels.
+    dpr: [1, 1.5],
+    // No zoom: keeps the framing fixed and avoids the close-up overdraw cost.
+    enableZoom: false,
+    // No pan: the camera always orbits the galaxy's center.
+    enablePan: false,
   },
   {
     slug: 'black-hole-singularity',

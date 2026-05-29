@@ -5,7 +5,7 @@
 export const ARM_WEIGHTS = [1.0, 0.7, 1.3, 0.5, 0.9];
 
 // Tunes how tightly the spiral curls. Higher = more wrapping around the center.
-export const LOG_SPIN_FACTOR = 2.5;
+export const LOG_SPIN_FACTOR = 4;
 
 export const ARM_COUNT = ARM_WEIGHTS.length;
 

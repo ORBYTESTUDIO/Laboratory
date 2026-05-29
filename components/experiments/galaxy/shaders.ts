@@ -11,12 +11,18 @@ export const vertexShader = /* glsl */ `
   void main() {
     vec3 pos = position;
 
-    // Differential rotation: inner particles spin faster than outer ones.
-    // 1 / (r + epsilon) avoids div-by-zero and softens the spike at the core.
+    // Mostly solid-body rotation so the spiral keeps its shape over time, with
+    // a gentle differential term (inner slightly faster) for a touch of life.
+    // The 0.5 constant is the rigid part; the 0.5/(r+1) part is the shear.
+    // Raise the +1.0 to wind less; for a perfectly rigid spin drop the second
+    // term entirely (angleOffset = uTime * uRotationStrength).
     float distanceToCenter = length(pos.xz);
     float angle = atan(pos.z, pos.x);
-    float angleOffset = uTime * uRotationStrength / (distanceToCenter + 0.1);
-    angle += angleOffset;
+    float angleOffset =
+        uTime * uRotationStrength * (0.5 + 0.5 / (distanceToCenter + 1.0));
+    // Subtract so the galaxy turns with the spiral trailing (the natural look
+    // for this winding direction). Flip back to += to reverse the spin.
+    angle -= angleOffset;
     pos.x = cos(angle) * distanceToCenter;
     pos.z = sin(angle) * distanceToCenter;
 

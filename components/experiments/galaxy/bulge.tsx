@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { fragmentShader, vertexShader } from './shaders';
 
 const PARAMS = {
-  count: 5_000,
+  count: 100,
   maxRadius: 0.9,
   // pow exponent on radius — higher = more squashed toward the very center
   concentration: 3.5,
@@ -15,7 +15,7 @@ const PARAMS = {
   // Hot inner color → warmer outer color (still warm — no blue at the core).
   innerColor: '#fff4d8',
   outerColor: '#ffc878',
-  size: 20,
+  size: 500,
   // Rate of bright "core stars" with a scale boost.
   brightRate: 0.04,
   brightBoost: 1.8,

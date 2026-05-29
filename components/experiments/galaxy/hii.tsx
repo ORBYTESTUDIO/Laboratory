@@ -25,7 +25,7 @@ const PARAMS = {
   ],
   size: 38,
   // Rotate together with the disk stars.
-  rotationStrength: 0.15,
+  rotationStrength: 0.05,
 };
 
 const totalCount = PARAMS.regionCount * PARAMS.particlesPerRegion;

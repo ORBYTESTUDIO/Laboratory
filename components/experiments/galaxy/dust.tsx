@@ -7,11 +7,11 @@ import { ARM_COUNT, logSpinAngle, pickArm } from './arms';
 import { fragmentShader, vertexShader } from './shaders';
 
 const PARAMS = {
-  count: 8_000,
-  radius: 5.5,
+  count: 1_000,
+  radius: 0,
   spin: 1,
-  clusterCount: 15,
-  clusterSpread: 0.4,
+  clusterCount: 1,
+  clusterSpread: 1.5,
   verticalFlatten: 0.25,
   // Desaturated, cohesive palette — should tint the arms, not paint over them.
   palette: [
@@ -22,8 +22,8 @@ const PARAMS = {
     '#cca8b8',
     '#9890c0',
   ],
-  size: 300,
-  rotationStrength: 0.15,
+  size: 400,
+  rotationStrength: 0.05,
 };
 
 const uniforms = {

@@ -40,7 +40,8 @@
       "PowerShell($dst = \"public\\\\textures\\\\black-hole-singularity\"; New-Item -ItemType Directory -Force -Path $dst | Out-Null; Copy-Item \"$env:USERPROFILE\\\\.claude\\\\skills\\\\cinematic-raymarching\\\\templates\\\\singularity-full\\\\static\\\\textures\\\\noise_deep.png\" \"$dst\\\\noise_deep.png\"; Copy-Item \"$env:USERPROFILE\\\\.claude\\\\skills\\\\cinematic-raymarching\\\\templates\\\\singularity-full\\\\static\\\\textures\\\\hdr\\\\nebula.png\" \"$dst\\\\nebula.png\"; Get-ChildItem $dst | Format-Table Name, Length)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\gonza\\Laboratory"
+      "C:\\Users\\gonza\\Laboratory",
+      "c:\\Users\\gonza\\Laboratory\\components\\experiments\\black-hole-cinematic"
     ]
   }
 }
