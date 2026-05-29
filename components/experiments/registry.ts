@@ -38,7 +38,7 @@ export const experiments: ExperimentMeta[] = [
   {
     slug: 'galaxy',
     title: 'ORBYTE Labs: Galaxy',
-    description: 'Sistema de partículas con distribución en espiral. 100k puntos, additive blending, color lerp del núcleo al borde.',
+    description: 'Particle system with a spiral distribution. 10k points, additive blending, color lerp from core to edge.',
     tags: ['particles', 'wip'],
     cameraPosition: [5, 7, 8],
     fov: 55,
@@ -54,7 +54,7 @@ export const experiments: ExperimentMeta[] = [
         id: 'to-black-hole',
         // On a spiral arm, lifted slightly above the disk plane.
         position: [2.6, 0.35, 1.2],
-        label: 'Agujero negro',
+        label: 'Black hole',
         target: 'black-hole-singularity',
         color: '#ffd0a0',
       },
@@ -63,7 +63,7 @@ export const experiments: ExperimentMeta[] = [
   {
     slug: 'black-hole-singularity',
     title: 'Black Hole: Singularity',
-    description: 'Black hole como scene-node bounded — Singularity path de la skill. WebGPURenderer + TSL: unit sphere DoubleSide, raymarch en object space con steering gravitacional, z-band quadratic shaping, Catmull-Rom B-spline 3-stop ramp, pseudo-normal edge sharpening, compositing front-to-back luminance-weighted, equirect starfield, pass()+bloom() en TSL.',
+    description: 'Black hole as a bounded scene-node — the skill\'s Singularity path. WebGPURenderer + TSL: unit sphere DoubleSide, object-space raymarch with gravitational steering, z-band quadratic shaping, Catmull-Rom B-spline 3-stop ramp, pseudo-normal edge sharpening, front-to-back luminance-weighted compositing, equirect starfield, pass()+bloom() in TSL.',
     tags: ['shaders', 'raymarching', 'tsl', 'webgpu', 'cinematic'],
     customCanvas: true,
     parent: 'galaxy',

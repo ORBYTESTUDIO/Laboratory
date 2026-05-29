@@ -1,7 +1,12 @@
 import { notFound } from 'next/navigation';
 import { allNodePaths, resolvePath } from '@/components/experiments/registry';
 import { SceneViewer } from '@/components/experiments/scene-loader';
-import { HotspotHint, NavBar } from '@/components/experiments/nav-chrome';
+import {
+  HotspotHint,
+  LabHeader,
+  NavBreadcrumb,
+  SceneCaption,
+} from '@/components/experiments/nav-chrome';
 import { SaturationFrame } from '@/components/experiments/saturation-frame';
 
 // Pre-render the root (`/`) plus every valid path through the node graph.
@@ -22,20 +27,18 @@ export default async function NodePage({ params }: Props) {
 
   const hasHotspots = (node.hotspots?.length ?? 0) > 0;
 
+  // El canvas ocupa toda la pantalla; la navegación (header + breadcrumb) y la
+  // descripción se superponen como overlays sobre él.
   return (
-    <main className="h-screen overflow-hidden bg-neutral-950 text-neutral-50 flex flex-col">
-      <header className="px-6 py-4 border-b border-neutral-800 shrink-0">
-        <NavBar slug={node.slug} />
-      </header>
-      <div className="flex-1 min-h-0 relative">
-        <SaturationFrame>
-          <SceneViewer slug={node.slug} />
-        </SaturationFrame>
-        <HotspotHint hasHotspots={hasHotspots} />
-      </div>
-      <footer className="px-6 py-3 border-t border-neutral-800 text-xs text-neutral-500 shrink-0">
-        {node.description}
-      </footer>
+    <main className="relative h-screen w-screen overflow-hidden bg-neutral-950 text-neutral-50">
+      <SaturationFrame>
+        <SceneViewer slug={node.slug} />
+      </SaturationFrame>
+
+      <LabHeader />
+      <NavBreadcrumb slug={node.slug} />
+      <SceneCaption title={node.title} description={node.description} />
+      <HotspotHint hasHotspots={hasHotspots} />
     </main>
   );
 }

@@ -1,13 +1,48 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react';
+
+type SaturationContextValue = {
+  color: boolean;
+  setColor: Dispatch<SetStateAction<boolean>>;
+};
+
+const SaturationContext = createContext<SaturationContextValue | null>(null);
+
+// Lives in the root layout so the RGB / B&W preference survives route changes
+// (navigating between experiments) instead of resetting every time a page —
+// and with it the SaturationFrame — remounts.
+export function SaturationProvider({ children }: { children: ReactNode }) {
+  const [color, setColor] = useState(true);
+  return (
+    <SaturationContext.Provider value={{ color, setColor }}>
+      {children}
+    </SaturationContext.Provider>
+  );
+}
+
+function useSaturation(): SaturationContextValue {
+  const ctx = useContext(SaturationContext);
+  if (!ctx) {
+    throw new Error('useSaturation must be used within <SaturationProvider>');
+  }
+  return ctx;
+}
 
 // Wraps the scene area in a CSS `saturate()` filter so every experiment renders
 // black & white by default — works uniformly across the WebGL and WebGPU
 // renderers without touching each scene's own post stack. A button toggles back
-// to full colour, with a smooth transition between the two.
+// to full colour, with a smooth transition between the two. The mode is read
+// from the provider above so it persists across navigation.
 export function SaturationFrame({ children }: { children: ReactNode }) {
-  const [color, setColor] = useState(true);
+  const { color, setColor } = useSaturation();
 
   return (
     <div className="relative h-full w-full">
@@ -18,28 +53,15 @@ export function SaturationFrame({ children }: { children: ReactNode }) {
         {children}
       </div>
 
+      {/* Solo texto, con la tipografía del header (text-xs md:text-base,
+          uppercase, nb) y mismos márgenes de borde. */}
       <button
         onClick={() => setColor((c) => !c)}
         aria-pressed={color}
-        title={color ? 'Volver a blanco y negro' : 'Mostrar color'}
-        className={
-          'absolute right-4 top-4 z-10 flex items-center gap-2 rounded-full border px-4 py-2 ' +
-          'font-sans text-xs backdrop-blur-sm transition ' +
-          (color
-            ? 'border-amber-300/60 bg-black/50 text-amber-100'
-            : 'border-neutral-700/60 bg-black/40 text-neutral-300 hover:text-neutral-100')
-        }
+        title={color ? 'Back to black & white' : 'Show color'}
+        className="absolute bottom-5 md:bottom-10 right-5 md:right-10 z-10 cursor-pointer uppercase nb text-xs md:text-base text-neutral-100 hover:opacity-50 duration-200"
       >
-        <span
-          aria-hidden
-          className={
-            'inline-block h-3 w-3 rounded-full transition ' +
-            (color
-              ? 'bg-linear-to-br from-fuchsia-400 via-amber-300 to-cyan-400'
-              : 'bg-neutral-400')
-          }
-        />
-        {color ? 'Color' : 'B/N'}
+        {color ? 'RGB' : 'B/W'}
       </button>
     </div>
   );

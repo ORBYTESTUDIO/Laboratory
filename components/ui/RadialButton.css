@@ -1,0 +1,51 @@
+/* Efecto de relleno radial: un círculo nace en la posición del cursor
+   (--x, --y) y crece hasta cubrir todo el botón en hover, invirtiendo los
+   colores de texto/borde. */
+.radial-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.25rem;
+  border: 1px solid var(--border-color, #fff);
+  border-radius: 9999px;
+  background-color: var(--initial-bg, transparent);
+  color: var(--text-color, #fff);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.4s ease, border-color 0.4s ease;
+}
+
+.radial-button::before {
+  content: '';
+  position: absolute;
+  top: var(--y, 50%);
+  left: var(--x, 50%);
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background-color: var(--hover-bg, #fff);
+  transform: translate(-50%, -50%);
+  transition: width 0.5s ease, height 0.5s ease;
+  z-index: -1;
+}
+
+.radial-button:hover {
+  color: var(--hover-text-color, #000);
+  border-color: var(--hover-border-color, #fff);
+}
+
+/* El diámetro se basa en el ancho del botón ×2.5 para garantizar cobertura
+   total desde cualquier esquina (los botones son píldoras anchas y bajas). */
+.radial-button:hover::before {
+  width: calc(var(--button-width, 200px) * 2.5);
+  height: calc(var(--button-width, 200px) * 2.5);
+}
+
+.button-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}

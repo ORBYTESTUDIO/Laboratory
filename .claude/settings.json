@@ -38,7 +38,8 @@
       "Bash(ls C:/Users/gonza/singularity 2>&1 | head -20)",
       "Read(//c/Users/gonza/singularity/**)",
       "PowerShell($dst = \"public\\\\textures\\\\black-hole-singularity\"; New-Item -ItemType Directory -Force -Path $dst | Out-Null; Copy-Item \"$env:USERPROFILE\\\\.claude\\\\skills\\\\cinematic-raymarching\\\\templates\\\\singularity-full\\\\static\\\\textures\\\\noise_deep.png\" \"$dst\\\\noise_deep.png\"; Copy-Item \"$env:USERPROFILE\\\\.claude\\\\skills\\\\cinematic-raymarching\\\\templates\\\\singularity-full\\\\static\\\\textures\\\\hdr\\\\nebula.png\" \"$dst\\\\nebula.png\"; Get-ChildItem $dst | Format-Table Name, Length)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npx tsc *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\gonza\\Laboratory",

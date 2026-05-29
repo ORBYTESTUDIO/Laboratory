@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TransitionProvider } from "@/components/experiments/transition";
+import { SaturationProvider } from "@/components/experiments/saturation-frame";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Laboratorio",
-  description: "Experimentos 3D con three.js y React Three Fiber",
+  title: "Laboratory",
+  description: "3D experiments with three.js and React Three Fiber",
 };
 
 export default function RootLayout({
@@ -29,7 +30,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TransitionProvider>{children}</TransitionProvider>
+        <SaturationProvider>
+          <TransitionProvider>{children}</TransitionProvider>
+        </SaturationProvider>
       </body>
     </html>
   );
