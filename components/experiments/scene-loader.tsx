@@ -14,6 +14,15 @@ const scenes: Record<string, ComponentType> = {
   'black-hole-singularity': dynamic(() => import('./black-hole-singularity/scene'), {
     ssr: false,
   }),
+  'nebula-flight': dynamic(() => import('./nebula-flight/scene'), {
+    ssr: false,
+  }),
+  'warp-tunnel': dynamic(() => import('./warp-tunnel/scene'), {
+    ssr: false,
+  }),
+  tribulence: dynamic(() => import('./tribulence/scene'), {
+    ssr: false,
+  }),
 };
 
 export function SceneViewer({ slug }: { slug: string }) {

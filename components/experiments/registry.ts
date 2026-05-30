@@ -58,6 +58,30 @@ export const experiments: ExperimentMeta[] = [
         target: 'black-hole-singularity',
         color: '#ffd0a0',
       },
+      {
+        // Opposite arm — the nebula-flight shader experiment.
+        id: 'to-nebula-flight',
+        position: [-2.8, 0.3, 1.6],
+        label: 'Nebula flight',
+        target: 'nebula-flight',
+        color: '#b39dff',
+      },
+      {
+        // Far arm, below center — the warp-tunnel shader experiment.
+        id: 'to-warp-tunnel',
+        position: [1.4, 0.5, -2.8],
+        label: 'Warp tunnel',
+        target: 'warp-tunnel',
+        color: '#7fe9ff',
+      },
+      {
+        // Near-far arm — the tribulence shader experiment.
+        id: 'to-tribulence',
+        position: [-1.7, 0.45, -2.3],
+        label: 'Tribulence',
+        target: 'tribulence',
+        color: '#ff9ec4',
+      },
     ],
   },
   {
@@ -67,6 +91,34 @@ export const experiments: ExperimentMeta[] = [
     tags: ['shaders', 'raymarching', 'tsl', 'webgpu', 'cinematic'],
     customCanvas: true,
     parent: 'galaxy',
+  },
+  {
+    slug: 'nebula-flight',
+    title: 'Nebula Flight',
+    description:
+      'Vuelo infinito por una nebulosa — shader de Orblivius portado a un quad fullscreen (GLSL ES 3.00). Túnel de estrellas procedural sobre ray-marching de nubes intergalácticas, con color HSV por densidad. Arrastrá para orientar la vista.',
+    tags: ['shaders', 'raymarching', 'shadertoy', 'fullscreen'],
+    parent: 'galaxy',
+    // Fragment fullscreen estilo Shadertoy: monta su propio Canvas sin OrbitControls.
+    customCanvas: true,
+  },
+  {
+    slug: 'warp-tunnel',
+    title: 'Warp Tunnel',
+    description:
+      'Túnel warp por ray-marching: un tubo deformado con FBM, planetas con intersección analítica, nebulosa de fondo, sol y lens-flare. El radio y el color laten con un espectro de audio sintético (iChannel3). Ruido y FFT generados por código; fondo y planetas desde texturas del lab.',
+    tags: ['shaders', 'raymarching', 'shadertoy', 'fullscreen'],
+    parent: 'galaxy',
+    customCanvas: true,
+  },
+  {
+    slug: 'tribulence',
+    title: 'Tribulence',
+    description:
+      'Turbulencia por modulación de frecuencia: ondas triangulares plegadas e iteradas con rotación del ángulo áureo, coloreadas con un kernel 1/(x²+k). Puramente matemático, sin texturas.',
+    tags: ['shaders', 'fullscreen', 'shadertoy'],
+    parent: 'galaxy',
+    customCanvas: true,
   },
 ];
 
