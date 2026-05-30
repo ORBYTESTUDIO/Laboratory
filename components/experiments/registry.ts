@@ -82,6 +82,14 @@ export const experiments: ExperimentMeta[] = [
         target: 'tribulence',
         color: '#ff9ec4',
       },
+      {
+        // Towards the viewer, above the disk — the interactive domain-warping lab.
+        id: 'to-domain-warping',
+        position: [0.3, 0.55, 2.9],
+        label: 'Domain warping',
+        target: 'domain-warping',
+        color: '#9effb0',
+      },
     ],
   },
   {
@@ -117,6 +125,15 @@ export const experiments: ExperimentMeta[] = [
     description:
       'Turbulencia por modulación de frecuencia: ondas triangulares plegadas e iteradas con rotación del ángulo áureo, coloreadas con un kernel 1/(x²+k). Puramente matemático, sin texturas.',
     tags: ['shaders', 'fullscreen', 'shadertoy'],
+    parent: 'galaxy',
+    customCanvas: true,
+  },
+  {
+    slug: 'domain-warping',
+    title: 'Domain Warping',
+    description:
+      'Lab interactivo: fbm(p + fbm(p + …)). Subí Warp para deformar el espacio con sí mismo, cambiá las capas para ver la recursión, bajá Warp a 0 y queda FBM puro. La técnica base de tribulence — tocá los sliders de la derecha.',
+    tags: ['shaders', 'fbm', 'interactive', 'learning'],
     parent: 'galaxy',
     customCanvas: true,
   },

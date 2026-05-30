@@ -23,6 +23,9 @@ const scenes: Record<string, ComponentType> = {
   tribulence: dynamic(() => import('./tribulence/scene'), {
     ssr: false,
   }),
+  'domain-warping': dynamic(() => import('./domain-warping/scene'), {
+    ssr: false,
+  }),
 };
 
 export function SceneViewer({ slug }: { slug: string }) {
